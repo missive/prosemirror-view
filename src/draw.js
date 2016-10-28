@@ -1,10 +1,32 @@
 const {DOMSerializer} = require("prosemirror-model")
 
 const browser = require("./browser")
-const {childContainer} = require("./dompos")
+const {childContainer, posBeforeFromDOM} = require("./dompos")
 
 function getSerializer(view) {
-  return view.someProp("domSerializer") || DOMSerializer.fromSchema(view.state.schema)
+  let serializer = view.someProp("domSerializer") || DOMSerializer.fromSchema(view.state.schema), copied
+  view.someProp("nodeViews", views => {
+    if (!copied) {
+      copied = {}
+      for (let name in serializer.nodes) copied[name] = serializer.nodes[name]
+      serializer = new DOMSerializer(copied, serializer.marks)
+    }
+    for (let name in views) copied[name] = nodeViewConstructor(view, views[name], copied[name])
+  })
+  return serializer
+}
+
+function nodeViewConstructor(view, nodeView, old) {
+  return node => {
+    let viewObj = nodeView(node, getAction => {
+      let action = viewObj && getAction(view.state, posBeforeFromDOM(viewObj.dom))
+      if (action) view.props.onAction(action)
+    })
+    if (!viewObj) return old(node)
+    viewObj.dom.pmNodeView = viewObj
+    if (!node.isLeaf) (viewObj.contentDOM || viewObj.dom).setAttribute("pm-container", true)
+    return viewObj.dom
+  }
 }
 
 function draw(view, doc, decorations) {
@@ -56,15 +78,16 @@ function redraw(view, oldDoc, newDoc, oldDecorations, newDecorations) {
         }
       }
 
-      let childDeco = newDecorations.forChild(offset, child), prevChildDeco, matchedLocalDeco
+      let childDeco = newDecorations.forChild(offset, child), prevChildDeco, matchedLocalDeco, nodeView
       if (matching &&
           childDeco.sameOutput(prevChildDeco = oldDecorations.forChild(offset, child)) &&
           (matchedLocalDeco = sameLocalDeco()) != null &&
           syncDOM()) {
         reuseDOM = true
         decoIndex = matchedLocalDeco
-      } else if (pChild && !child.isText && child.sameMarkup(pChild) &&
-                 (matchedLocalDeco = sameLocalDeco()) != null && syncDOM()) {
+      } else if (pChild && !child.isText && child.type == pChild.type &&
+                 (matchedLocalDeco = sameLocalDeco()) != null && syncDOM() &&
+                 ((nodeView = domPos.pmNodeView) && nodeView.update ? nodeView.update(child) : child.sameMarkup(pChild))) {
         reuseDOM = true
         decoIndex = matchedLocalDeco
         if (!pChild.isLeaf)

@@ -1,4 +1,4 @@
-const {scrollPosIntoView, posAtCoords, coordsAtPos} = require("./dompos")
+const {scrollPosIntoView, posAtCoords, coordsAtPos, DOMAfterPos} = require("./dompos")
 const {draw, redraw} = require("./draw")
 const {initInput, finishUpdateFromDOM, dispatchKeyDown, dispatchKeyPress} = require("./input")
 const {SelectionReader, selectionToDOM} = require("./selection")
@@ -180,6 +180,12 @@ class EditorView {
   // cursor-ish rectangle.
   coordsAtPos(pos) { return coordsAtPos(this, pos) }
 
+  // :: (number) → ?NodeView
+  // Find the node view for the node at the given position, if any.
+  nodeViewAtPos(pos) {
+    return DOMAfterPos(this, pos).pmNodeView
+  }
+
   dispatchKeyDown(event) {
     return dispatchKeyDown(this, event)
   }
@@ -293,6 +299,15 @@ exports.EditorView = EditorView
 //   [`DOMSerializer.fromSchema`](#model.DOMSerializer^fromSchema)
 //   will be used.
 //
+//   nodeViews:: ?Object<(node: Node, sendAction: (state: EditorState, pos: number) → ?Action) → NodeView>
+//   Use the given [node view](#view.NodeView) implementation to
+//   manage the DOM representation of certain node types. When a node
+//   view is created, it is passed an action-sending function that it
+//   can use to find out its current position in the document and the
+//   current editor state, and optionally produce an
+//   [action](#state.Action) to send to the editor's
+//   [`onAction`](#view.EditorProps.onAction) callback.
+//
 //   clipboardSerializer:: ?DOMSerializer
 //   The DOM serializer to use when putting content onto the
 //   clipboard. When not given, the value of the
@@ -323,3 +338,38 @@ exports.EditorView = EditorView
 //   scrollMargin:: ?number
 //   Determines the extra space (in pixels) that is left above or
 //   below the cursor when it is scrolled into view. Defaults to 5.
+
+// NodeView:: interface
+//
+// A node view is an object that acts as an intermediary between an
+// editor view and the DOM representation of a certain node. An
+// instance is created when the node is drawn, and it can handle
+// certain aspects of the DOM behavior for the node.
+//
+//   dom:: dom.Node
+//   The DOM node that should be used as the node's representation.
+//
+//   contentDOM:: ?dom.Node
+//   The DOM node that holds the node's child nodes. Defaults to the
+//   main `dom` property. Only relevant for non-leaf node types.
+//
+//   parseRule:: ?() → ParseRule
+//   Can be used by the view to control the parsing of the DOM.
+//
+//   update:: ?(newNode: Node) → bool
+//   An optional method that the redraw algorithm will use to update
+//   the view when the node or its content changes. When present, it
+//   will be called when a DOM update finds a changed node of the same
+//   type in the place of the view's node. When it returns true, it
+//   should have updated the DOM structure to show the changed node.
+//   It may return false to indicate that it can't update, and a
+//   redraw should happen.
+//
+//   select:: ?()
+//   When present, this will be called when the node is selected as a
+//   node selection. It replaces the default selected-node styling.
+//
+//   deselect:: ?()
+//   When present, and `select` is also present, this will be called
+//   when the node stops being selected. It should remove any styling
+//   that `select` added.

@@ -13,6 +13,7 @@ function posBeforeFromDOM(node) {
   }
   return pos
 }
+exports.posBeforeFromDOM = posBeforeFromDOM
 
 // : (dom.Node, number, ?number) → number
 function posFromDOM(dom, domOffset, bias = 0) {
