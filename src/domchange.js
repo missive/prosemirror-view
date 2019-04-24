@@ -146,14 +146,17 @@ export function readDOMChange(view, from, to, typeOver) {
 
   let $from = parse.doc.resolveNoCache(change.start - parse.from)
   let $to = parse.doc.resolveNoCache(change.endB - parse.from)
-  let nextSel
+  let nextSel, handled
+
   // If this looks like the effect of pressing Enter, just dispatch an
   // Enter key instead.
   if (!$from.sameParent($to) && $from.pos < parse.doc.content.size &&
       (nextSel = Selection.findFrom(parse.doc.resolve($from.pos + 1), 1, true)) &&
       nextSel.head == $to.pos &&
-      view.someProp("handleKeyDown", f => f(view, keyEvent(13, "Enter"))))
-    return
+      (handled = view.someProp("handleKeyDown", f => f(view, keyEvent(13, "Enter")))) &&
+      handled != 'doNotPreventDefault'
+  ) { return }
+
   // Same for backspace
   if (view.state.selection.anchor > change.start &&
       looksLikeJoin(doc, change.start, change.endA, $from, $to) &&

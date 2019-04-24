@@ -97,10 +97,16 @@ editHandlers.keydown = (view, event) => {
   if (inOrNearComposition(view, event)) return
   view.lastKeyCode = event.keyCode
   view.lastKeyCodeTime = Date.now()
-  if (view.someProp("handleKeyDown", f => f(view, event)) || captureKeyDown(view, event))
+
+  let handled = view.someProp("handleKeyDown", f => f(view, event))
+  let capture = captureKeyDown(view, event)
+
+  if (handled || capture) {
+    if (handled == 'doNotPreventDefault') return
     event.preventDefault()
-  else
+  } else {
     setSelectionOrigin(view, "key")
+  }
 }
 
 editHandlers.keyup = (view, e) => {
