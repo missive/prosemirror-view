@@ -1,5 +1,5 @@
 {
-  "name": "prosemirror-view",
+  "name": "@missive/prosemirror-view",
   "version": "1.11.6",
   "description": "ProseMirror's view component",
   "main": "dist/index.js",
