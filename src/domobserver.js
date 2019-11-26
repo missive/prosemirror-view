@@ -2,7 +2,14 @@ import browser from "./browser"
 import {domIndex, isEquivalentPosition} from "./dom"
 import {hasFocusAndSelection, hasSelection, selectionToDOM} from "./selection"
 
-const observeOptions = {childList: true, characterData: true, attributes: true, subtree: true, characterDataOldValue: true}
+const observeOptions = {
+  childList: true,
+  characterData: true,
+  characterDataOldValue: true,
+  attributes: true,
+  attributeOldValue: true,
+  subtree: true
+}
 // IE11 has very broken mutation observers, so we also listen to DOMCharacterDataModified
 const useCharData = browser.ie && browser.ie_version <= 11
 
@@ -131,10 +138,10 @@ export class DOMObserver {
     let sel = this.view.root.getSelection()
     let newSel = !this.suppressingSelectionUpdates && !this.currentSelection.eq(sel) && hasSelection(this.view) && !this.ignoreSelectionChange(sel)
 
-    let from = -1, to = -1, typeOver = false
+    let from = -1, to = -1, typeOver = false, added = []
     if (this.view.editable) {
       for (let i = 0; i < mutations.length; i++) {
-        let result = this.registerMutation(mutations[i])
+        let result = this.registerMutation(mutations[i], added)
         if (result) {
           from = from < 0 ? result.from : Math.min(result.from, from)
           to = to < 0 ? result.to : Math.max(result.to, to)
@@ -142,15 +149,21 @@ export class DOMObserver {
         }
       }
     }
+
     if (from > -1 || newSel) {
-      if (from > -1) this.view.docView.markDirty(from, to)
+      if (from > -1) {
+        this.view.docView.markDirty(from, to)
+        checkCSS(this.view)
+      }
       this.handleDOMChange(from, to, typeOver)
       if (this.view.docView.dirty) this.view.updateState(this.view.state)
       else if (!this.currentSelection.eq(sel)) selectionToDOM(this.view)
     }
   }
 
-  registerMutation(mut) {
+  registerMutation(mut, added) {
+    // Ignore mutations inside nodes that were already noted as inserted
+    if (added.indexOf(mut.target) > -1) return null
     let desc = this.view.docView.nearestDesc(mut.target)
     if (mut.type == "attributes" &&
         (desc == this.view.docView || mut.attributeName == "contenteditable" ||
@@ -163,7 +176,7 @@ export class DOMObserver {
       let prev = mut.previousSibling, next = mut.nextSibling
       if (browser.ie && browser.ie_version <= 11 && mut.addedNodes.length) {
         // IE11 gives us incorrect next/prev siblings for some
-        // insertions, to if there are added nodes, recompute those
+        // insertions, so if there are added nodes, recompute those
         for (let i = 0; i < mut.addedNodes.length; i++) {
           let {previousSibling, nextSibling} = mut.addedNodes[i]
           if (!previousSibling || Array.prototype.indexOf.call(mut.addedNodes, previousSibling) < 0) prev = previousSibling
@@ -175,6 +188,7 @@ export class DOMObserver {
       let from = desc.localPosFromDOM(mut.target, fromOffset, -1)
       let toOffset = next && next.parentNode == mut.target
           ? domIndex(next) : mut.target.childNodes.length
+      for (let i = 0; i < mut.addedNodes.length; i++) added.push(mut.addedNodes[i])
       let to = desc.localPosFromDOM(mut.target, toOffset, 1)
       return {from, to}
     } else if (mut.type == "attributes") {
@@ -191,4 +205,13 @@ export class DOMObserver {
       }
     }
   }
+}
+
+let cssChecked = false
+
+function checkCSS(view) {
+  if (cssChecked) return
+  cssChecked = true
+  if (getComputedStyle(view.dom).whiteSpace == "normal")
+    console["warn"]("ProseMirror expects the CSS white-space property to be set, preferably to 'pre-wrap'. It is recommended to load style/prosemirror.css from the prosemirror-view package.")
 }

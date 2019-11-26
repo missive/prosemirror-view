@@ -1,7 +1,7 @@
 const {doc, p, hr, em, strong, img, blockquote, schema} = require("prosemirror-test-builder")
 const {Plugin, TextSelection} = require("prosemirror-state")
 const {tempEditor} = require("./view")
-const {DecorationSet, Decoration} = require("../dist")
+const {DecorationSet, Decoration} = require("..")
 const ist = require("ist")
 
 function make(str) {
@@ -276,6 +276,15 @@ describe("Decoration drawing", () => {
     ist(view.dom.querySelector("p"), para)
     ist(para.className, "foo bar")
     ist(!para.title)
+  })
+
+  it("can add and remove CSS custom properties from a node", () => {
+    let deco = Decoration.node(0, 5, {style: '--my-custom-property:36px'})
+    let view = tempEditor({doc: doc(p("foo")),
+                           plugins: [decoPlugin([deco])]})
+    ist(view.dom.querySelector("p").style.getPropertyValue('--my-custom-property'), "36px")
+    updateDeco(view, null, [deco])
+    ist(view.dom.querySelector("p").style.getPropertyValue('--my-custom-property'), "")
   })
 
   it("updates decorated nodes even if a widget is added before them", () => {
